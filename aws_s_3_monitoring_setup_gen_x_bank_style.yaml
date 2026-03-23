@@ -1,0 +1,156 @@
+# ==============================================
+# AWS S3 Monitoring Project (Gen X Bank Style)
+# Author: Om Satyajit Nayak
+# ==============================================
+
+# This project sets up:
+# - S3 Bucket
+# - CloudWatch Monitoring
+# - Alerts using SNS
+# - Logging & Security
+
+# ----------------------------------------------
+# 1. Terraform Configuration (main.tf)
+# ----------------------------------------------
+
+provider "aws" {
+  region = "us-east-1"
+}
+
+# S3 Bucket
+resource "aws_s3_bucket" "genx_bank_bucket" {
+  bucket = "genx-bank-secure-bucket-001"
+
+  tags = {
+    Name        = "GenX Bank Secure Bucket"
+    Environment = "Production"
+  }
+}
+
+# Enable Versioning
+resource "aws_s3_bucket_versioning" "versioning" {
+  bucket = aws_s3_bucket.genx_bank_bucket.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Enable Server Access Logging
+resource "aws_s3_bucket_logging" "logging" {
+  bucket = aws_s3_bucket.genx_bank_bucket.id
+
+  target_bucket = aws_s3_bucket.genx_bank_bucket.id
+  target_prefix = "log/"
+}
+
+# CloudWatch Log Group
+resource "aws_cloudwatch_log_group" "s3_logs" {
+  name = "/aws/s3/genx-bank"
+}
+
+# SNS Topic for Alerts
+resource "aws_sns_topic" "alerts" {
+  name = "genx-bank-alerts"
+}
+
+# CloudWatch Alarm (Example: High Number of Requests)
+resource "aws_cloudwatch_metric_alarm" "s3_request_alarm" {
+  alarm_name          = "HighS3Requests"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "NumberOfObjects"
+  namespace           = "AWS/S3"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "1000"
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+}
+
+# ----------------------------------------------
+# 2. GitHub Actions CI/CD ( .github/workflows/deploy.yml )
+# ----------------------------------------------
+
+# This automates deployment
+
+name: Deploy S3 Monitoring
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+# ----------------------------------------------
+# 3. Python Monitoring Script (monitor.py)
+# ----------------------------------------------
+
+import boto3
+
+s3 = boto3.client('s3')
+
+BUCKET_NAME = "genx-bank-secure-bucket-001"
+
+
+def check_bucket():
+    response = s3.list_objects_v2(Bucket=BUCKET_NAME)
+
+    if 'Contents' in response:
+        print(f"Bucket has {len(response['Contents'])} objects")
+    else:
+        print("Bucket is empty")
+
+
+if __name__ == "__main__":
+    check_bucket()
+
+# ----------------------------------------------
+# 4. Requirements File (requirements.txt)
+# ----------------------------------------------
+
+boto3
+
+# ----------------------------------------------
+# 5. README.md (Project Documentation)
+# ----------------------------------------------
+
+# GenX Bank S3 Monitoring Project
+
+## Features
+- Secure S3 Bucket
+- Versioning Enabled
+- CloudWatch Monitoring
+- SNS Alerts
+- Automated Deployment via GitHub Actions
+
+## How to Use
+1. Clone repo
+2. Configure AWS CLI
+3. Run Terraform
+4. Monitor using Python script
+
+## Commands
+terraform init
+terraform apply
+python monitor.py
+
+# ==============================================
+# END OF PROJECT
+# ==============================================
